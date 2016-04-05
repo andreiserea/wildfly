@@ -58,10 +58,24 @@ public class InfinispanAuthenticationCacheFactory implements AuthenticationCache
     public ConcurrentMap<Principal, DomainInfo> getCache() {
         // TODO override global settings with security domain specific
         ConfigurationBuilder builder = new ConfigurationBuilder();
-        Configuration baseCfg = cacheManager.getCacheConfiguration("auth-cache");
-        if (baseCfg != null) {
-            builder.read(baseCfg);
-        }
+        // hack: if auth-cache configuration should be present wait until it is loaded
+        // see https://issues.jboss.org/browse/WFLY-3858
+        String prop = System.getProperty("com.capgemini.ibx.auth-cache.defined");
+        Configuration baseCfg;
+        do {
+            baseCfg = cacheManager.getCacheConfiguration("auth-cache");
+            if (baseCfg != null) {
+                builder.read(baseCfg);
+            } else {
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
+        } while (baseCfg == null && prop != null);
+
         cacheManager.defineConfiguration(securityDomain, builder.build());
         return cacheManager.getCache(securityDomain);
     }
